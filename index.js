@@ -4,6 +4,10 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
 const ExcelJS = require('exceljs');
+const dns = require('dns');
+
+// Forzar la resolución DNS a priorizar IPv4 sobre IPv6 para evitar ENETUNREACH en Render
+dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,7 +16,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Cadena de conexión a Neon (Usa process.env.DATABASE_URL si existe o el enlace por defecto)
+// Cadena de conexión a Neon
 const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_iXeyvjPzn43A@ep-proud-queen-b4ssyrda.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
 // Inicialización de la conexión con SSL obligatorio para Neon
@@ -44,11 +48,11 @@ async function iniciarBaseDeDatos() {
     await pool.query(`
       ALTER TABLE productos
         ADD COLUMN IF NOT EXISTS precio_menudeo NUMERIC(10, 2),
-        ADD COLUMN IF NOT EXISTS precio_ciento NUMERIC(10, 2),
-        ADD COLUMN IF NOT EXISTS precio_millar NUMERIC(10, 2),
         ADD COLUMN IF NOT EXISTS precio_media_docena NUMERIC(10, 2),
         ADD COLUMN IF NOT EXISTS precio_docena NUMERIC(10, 2),
-        ADD COLUMN IF NOT EXISTS precio_cuarto NUMERIC(10, 2);
+        ADD COLUMN IF NOT EXISTS precio_cuarto NUMERIC(10, 2),
+        ADD COLUMN IF NOT EXISTS precio_ciento NUMERIC(10, 2),
+        ADD COLUMN IF NOT EXISTS precio_millar NUMERIC(10, 2);
     `);
 
     await pool.query(`
