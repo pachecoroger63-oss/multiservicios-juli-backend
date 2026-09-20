@@ -17,8 +17,12 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // Cadena de conexión a Neon con el endpoint pooler de IPv4
-const connectionString = process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_iXeyvjPzn43A@ep-proud-queen-b4ssyrda-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require';
+const connectionString = process.env.DATABASE_URL;
 
+if (!connectionString) {
+  console.error('❌ Falta la variable de entorno DATABASE_URL. Configúrala en Render o en tu archivo .env local.');
+  process.exit(1);
+}
 // Inicialización del pool forzando socket IPv4 vía clientConfig
 const pool = new Pool({
   connectionString: connectionString,
