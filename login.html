@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceso - Multiservicios Juli E.I.R.L</title>
+  <link rel="icon" type="image/x-icon" href="/July.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --azul-oscuro: #6cabee;
+      --azul: #14508f;
+      --azul-claro: #1f77c4;
+      --radio: 14px;
+      --sombra: 0 8px 24px rgba(13, 44, 78, 0.15);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Poppins', 'Segoe UI', Tahoma, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(120deg, var(--azul-oscuro) 0%, var(--azul) 60%, var(--azul-claro) 100%);
+      padding: 20px;
+    }
+    .login-card {
+      background: #fff;
+      padding: 36px 32px;
+      border-radius: var(--radio);
+      box-shadow: var(--sombra);
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    .login-card img { height: 70px; margin-bottom: 14px; }
+    .login-card h1 { font-size: 18px; color: var(--azul); margin: 0 0 4px; }
+    .login-card p { font-size: 12.5px; color: #8593a3; margin: 0 0 22px; }
+    form { display: flex; flex-direction: column; gap: 12px; }
+    input {
+      padding: 12px 14px; border: 1.5px solid #dde4ec; border-radius: 9px; font-size: 14px;
+      font-family: inherit;
+    }
+    input:focus { outline: none; border-color: var(--azul-claro); }
+    button {
+      padding: 12px 14px; border: none; border-radius: 9px; font-size: 14px; font-weight: 600;
+      color: #fff; cursor: pointer;
+      background: linear-gradient(135deg, var(--azul) 0%, var(--azul-claro) 100%);
+    }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .msg-error {
+      background: #fce6e7; color: #a3272c; border: 1px solid #f5c2c4;
+      padding: 10px; border-radius: 8px; font-size: 13px; display: none; margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <img src="/Logo.png" alt="Multiservicios Juli E.I.R.L">
+    <h1>Acceso al sistema</h1>
+    <p>Ingresa tus credenciales para continuar</p>
+    <div id="msgError" class="msg-error"></div>
+    <form id="formLogin">
+      <input type="text" id="dni" placeholder="N° de DNI" required autocomplete="username" inputmode="numeric">
+      <input type="password" id="password" placeholder="Contraseña" required autocomplete="current-password">
+      <button type="submit" id="btnIngresar">Ingresar</button>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById('formLogin').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const dni = document.getElementById('dni').value.trim();
+      const password = document.getElementById('password').value;
+      const msgError = document.getElementById('msgError');
+      const btn = document.getElementById('btnIngresar');
+
+      msgError.style.display = 'none';
+      btn.disabled = true;
+      btn.innerText = 'Verificando...';
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dni, password })
+        });
+
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          const data = await res.json().catch(() => ({}));
+          msgError.innerText = data.error || 'DNI o contraseña incorrectos';
+          msgError.style.display = 'block';
+        }
+      } catch (err) {
+        msgError.innerText = 'Error de conexión, intenta de nuevo';
+        msgError.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Ingresar';
+      }
+    });
+  </script>
+</body>
+</html>

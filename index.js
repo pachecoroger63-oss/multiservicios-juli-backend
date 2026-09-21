@@ -5,42 +5,99 @@ const cors = require('cors');
 const path = require('path');
 const ExcelJS = require('exceljs');
 const dns = require('dns');
+const session = require('express-session');
 
-// Priorizar la resolución DNS hacia IPv4
 dns.setDefaultResultOrder('ipv4first');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
-app.use(express.static(__dirname));
 
-// Cadena de conexión a Neon con el endpoint pooler de IPv4
+// --- SESIONES DE LOGIN ---
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'cambia-esta-clave-en-produccion',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 días
+    sameSite: 'lax'
+  }
+}));
+
+// Middleware: exige haber iniciado sesión
+function requireLogin(req, res, next) {
+  if (req.session && req.session.autenticado) {
+    return next();
+  }
+  if (req.path.startsWith('/api/')) {
+    return res.status(401).json({ error: 'Sesión no iniciada' });
+  }
+  return res.redirect('/login.html');
+}
+
+// --- RUTAS DE LOGIN (públicas, sin protección) ---
+app.post('/api/login', (req, res) => {
+  const { dni, password } = req.body;
+  const dniValido = process.env.ADMIN_DNI;
+  const passValido = process.env.ADMIN_PASSWORD;
+
+  if (!dniValido || !passValido) {
+    return res.status(500).json({ error: 'El servidor no tiene configuradas las credenciales de acceso.' });
+  }
+
+  if (dni === dniValido && password === passValido) {
+    req.session.autenticado = true;
+    return res.json({ ok: true });
+  }
+
+  return res.status(401).json({ error: 'DNI o contraseña incorrectos' });
+});
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.json({ ok: true });
+  });
+});
+
+// --- RUTAS PROTEGIDAS ---
+
+app.get('/', requireLogin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'app.html'));
+});
+
+app.get('/app.html', requireLogin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'app.html'));
+});
+
+// Protege TODAS las rutas /api/* excepto /api/login (ya definida arriba)
+app.use('/api', requireLogin);
+
+// Archivos estáticos (login.html, Logo.png, July.ico, etc.)
+// index:false evita que Express sirva app.html automáticamente en "/"
+app.use(express.static(__dirname, { index: false }));
+
+// Configuración de conexión a PostgreSQL (Neon)
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
   console.error('❌ Falta la variable de entorno DATABASE_URL. Configúrala en Render o en tu archivo .env local.');
   process.exit(1);
 }
-// Inicialización del pool forzando socket IPv4 vía clientConfig
+
 const pool = new Pool({
   connectionString: connectionString,
   ssl: {
     rejectUnauthorized: false
-  },
-  clientConfig: {
-    family: 4
   }
 });
 
 async function iniciarBaseDeDatos() {
   try {
-    // Probar conexión a Neon
     await pool.query('SELECT 1');
     console.log('☁️ Conectado a la base de datos en la nube (Neon).');
 
-    // Asegurar estructura de tablas
     await pool.query(`
       CREATE TABLE IF NOT EXISTS productos (
         id SERIAL PRIMARY KEY,
@@ -80,11 +137,6 @@ async function iniciarBaseDeDatos() {
     process.exit(1);
   }
 }
-
-// Ruta principal
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
 
 // --- API PRODUCTOS ---
 
