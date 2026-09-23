@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --azul-oscuro: #6cabee;
+      --azul-oscuro: #0d2c4e; /* Azul oscuro real para fondos y sombras */
       --azul: #14508f;
       --azul-claro: #1f77c4;
       --naranja: #f7941d;
@@ -137,10 +137,11 @@
 
     form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
     input, select, button {
-      padding: 11px 14px; border: 1.5px solid #dde4ec; border-radius: 9px; font-size: 14px;
-      font-family: inherit; transition: border-color .15s ease, box-shadow .15s ease;
-      background: #fbfcfe;
-    }
+  width: 100%;
+  padding: 11px 14px; border: 1.5px solid #dde4ec; border-radius: 9px; font-size: 14px;
+  font-family: inherit; transition: border-color .15s ease, box-shadow .15s ease;
+  background: #fbfcfe;
+}
     input:focus, select:focus {
       outline: none; border-color: var(--azul-claro); box-shadow: 0 0 0 3px rgba(31,119,196,0.15); background: #fff;
     }
@@ -344,294 +345,324 @@
     </footer>
   </div>
 
-  <script>
-    let listaVentasGlobal = [];
+<script>
+  let listaVentasGlobal = [];
 
-    function mostrarMensaje(elementId, texto, esError = false) {
-      const box = document.getElementById(elementId);
-      box.innerText = texto;
-      box.className = `msg-box ${esError ? 'error' : 'success'}`;
-      box.style.display = 'block';
-      setTimeout(() => box.style.display = 'none', 3500);
+  function mostrarMensaje(elementId, texto, esError = false) {
+    const box = document.getElementById(elementId);
+    box.innerText = texto;
+    box.className = `msg-box ${esError ? 'error' : 'success'}`;
+    box.style.display = 'block';
+    setTimeout(() => box.style.display = 'none', 3500);
+  }
+
+  async function cargarResumen() {
+    try {
+      const res = await fetch('/api/resumen');
+      const data = await res.json();
+      document.getElementById('lblTotalRecaudado').innerText = `S/ ${data.totalRecaudado.toFixed(2)}`;
+      document.getElementById('lblTotalVentas').innerText = data.totalVentas;
+      document.getElementById('lblStockTotal').innerText = `${data.stockTotal} und.`;
+    } catch (err) {
+      console.error('Error al cargar resumen:', err);
     }
+  }
 
-    async function cargarResumen() {
-      try {
-        const res = await fetch('/api/resumen');
-        const data = await res.json();
-        document.getElementById('lblTotalRecaudado').innerText = `S/ ${data.totalRecaudado.toFixed(2)}`;
-        document.getElementById('lblTotalVentas').innerText = data.totalVentas;
-        document.getElementById('lblStockTotal').innerText = `${data.stockTotal} und.`;
-      } catch (err) {
-        console.error('Error al cargar resumen:', err);
-      }
-    }
+  async function cargarProductos() {
+    try {
+      const res = await fetch('/api/productos');
+      const productos = await res.json();
 
-    async function cargarProductos() {
-      try {
-        const res = await fetch('/api/productos');
-        const productos = await res.json();
+      const tbody = document.getElementById('tablaProductos');
+      const select = document.getElementById('selectProducto');
 
-        const tbody = document.getElementById('tablaProductos');
-        const select = document.getElementById('selectProducto');
+      tbody.innerHTML = '';
+      select.innerHTML = '<option value="">Seleccione un producto...</option>';
 
-        tbody.innerHTML = '';
-        select.innerHTML = '<option value="">Seleccione un producto...</option>';
+      productos.forEach(p => {
+        const pMenudeo = parseFloat(p.precio_menudeo);
+        const pMediaDocena = p.precio_media_docena !== null && p.precio_media_docena !== undefined ? parseFloat(p.precio_media_docena) : null;
+        const pDocena = p.precio_docena !== null && p.precio_docena !== undefined ? parseFloat(p.precio_docena) : null;
+        const pCuarto = p.precio_cuarto !== null && p.precio_cuarto !== undefined ? parseFloat(p.precio_cuarto) : null;
+        const pCiento = p.precio_ciento !== null && p.precio_ciento !== undefined ? parseFloat(p.precio_ciento) : null;
+        const pMillar = p.precio_millar !== null && p.precio_millar !== undefined ? parseFloat(p.precio_millar) : null;
 
-        productos.forEach(p => {
-          const pMenudeo = parseFloat(p.precio_menudeo);
-          const pMediaDocena = p.precio_media_docena !== null && p.precio_media_docena !== undefined ? parseFloat(p.precio_media_docena) : null;
-          const pDocena = p.precio_docena !== null && p.precio_docena !== undefined ? parseFloat(p.precio_docena) : null;
-          const pCuarto = p.precio_cuarto !== null && p.precio_cuarto !== undefined ? parseFloat(p.precio_cuarto) : null;
-          const pCiento = p.precio_ciento !== null && p.precio_ciento !== undefined ? parseFloat(p.precio_ciento) : null;
-          const pMillar = p.precio_millar !== null && p.precio_millar !== undefined ? parseFloat(p.precio_millar) : null;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.id}</td>
+          <td>${p.nombre}</td>
+          <td>S/ ${pMenudeo.toFixed(2)}</td>
+          <td>${pMediaDocena !== null ? 'S/ ' + pMediaDocena.toFixed(2) : '—'}</td>
+          <td>${pDocena !== null ? 'S/ ' + pDocena.toFixed(2) : '—'}</td>
+          <td>${pCuarto !== null ? 'S/ ' + pCuarto.toFixed(2) : '—'}</td>
+          <td>${pCiento !== null ? 'S/ ' + pCiento.toFixed(2) : '—'}</td>
+          <td>${pMillar !== null ? 'S/ ' + pMillar.toFixed(2) : '—'}</td>
+          <td><strong>${p.stock}</strong></td>
+          <td>
+            <button class="btn-warning btn-editar" data-producto='${JSON.stringify(p).replace(/'/g, "&apos;")}'>Editar</button>
+            <button class="btn-danger" onclick="eliminarProducto(${p.id})">Eliminar</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
 
-          tbody.innerHTML += `
-            <tr>
-              <td>${p.id}</td>
-              <td>${p.nombre}</td>
-              <td>S/ ${pMenudeo.toFixed(2)}</td>
-              <td>${pMediaDocena !== null ? 'S/ ' + pMediaDocena.toFixed(2) : '—'}</td>
-              <td>${pDocena !== null ? 'S/ ' + pDocena.toFixed(2) : '—'}</td>
-              <td>${pCuarto !== null ? 'S/ ' + pCuarto.toFixed(2) : '—'}</td>
-              <td>${pCiento !== null ? 'S/ ' + pCiento.toFixed(2) : '—'}</td>
-              <td>${pMillar !== null ? 'S/ ' + pMillar.toFixed(2) : '—'}</td>
-              <td><strong>${p.stock}</strong></td>
-              <td>
-                <button class="btn-warning" onclick='prepararEdicion(${p.id}, ${JSON.stringify(p.nombre)}, ${pMenudeo}, ${pMediaDocena ?? 'null'}, ${pDocena ?? 'null'}, ${pCuarto ?? 'null'}, ${pCiento ?? 'null'}, ${pMillar ?? 'null'}, ${p.stock})'>Editar</button>
-                <button class="btn-danger" onclick="eliminarProducto(${p.id})">Eliminar</button>
-              </td>
-            </tr>
-          `;
-
-          if (p.stock > 0) {
-            select.innerHTML += `<option value="${p.id}">${p.nombre} - desde S/ ${pMenudeo.toFixed(2)} (Stock: ${p.stock})</option>`;
-          }
-        });
-      } catch (err) {
-        console.error('Error al cargar productos:', err);
-      }
-    }
-
-    async function cargarVentas() {
-      try {
-        const res = await fetch('/api/ventas');
-        listaVentasGlobal = await res.json();
-        const tbody = document.getElementById('tablaVentas');
-        tbody.innerHTML = '';
-
-        listaVentasGlobal.forEach(v => {
-          const fecha = new Date(v.fecha).toLocaleString();
-          tbody.innerHTML += `
-            <tr>
-              <td>${v.id}</td>
-              <td>${v.producto_nombre}</td>
-              <td>${v.cantidad}</td>
-              <td>S/ ${parseFloat(v.precio_unitario).toFixed(2)}</td>
-              <td><strong>S/ ${parseFloat(v.total).toFixed(2)}</strong></td>
-              <td><small>${fecha}</small></td>
-              <td><button class="btn-danger" onclick="eliminarVenta(${v.id})">Eliminar</button></td>
-            </tr>
-          `;
-        });
-      } catch (err) {
-        console.error('Error al cargar ventas:', err);
-      }
-    }
-
-    async function cargarTopProductos() {
-      const periodo = document.getElementById('filtroPeriodo').value;
-      const tbody = document.getElementById('tablaTopProductos');
-
-      try {
-        const res = await fetch(`/api/reportes/top-productos?periodo=${periodo}`);
-        const data = await res.json();
-        tbody.innerHTML = '';
-
-        if (data.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay ventas registradas en este periodo</td></tr>';
-          return;
+        if (p.stock > 0) {
+          select.innerHTML += `<option value="${p.id}">${p.nombre} - desde S/ ${pMenudeo.toFixed(2)} (Stock: ${p.stock})</option>`;
         }
-
-        data.forEach((p, index) => {
-          const posicion = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
-          tbody.innerHTML += `
-            <tr>
-              <td>${posicion}</td>
-              <td>${p.producto_nombre}</td>
-              <td>${p.unidades_vendidas}</td>
-              <td><strong>S/ ${parseFloat(p.total_facturado).toFixed(2)}</strong></td>
-              <td>${p.numero_ventas}</td>
-            </tr>
-          `;
-        });
-      } catch (err) {
-        console.error('Error al cargar el top de productos:', err);
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Error al cargar el reporte</td></tr>';
-      }
+      });
+    } catch (err) {
+      console.error('Error al cargar productos:', err);
     }
+  }
 
-    document.getElementById('formProducto').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = document.getElementById('productoId').value;
-      const nombre = document.getElementById('nombre').value;
-      const precio_menudeo = document.getElementById('precioMenudeo').value;
-      const precio_media_docena = document.getElementById('precioMediaDocena').value;
-      const precio_docena = document.getElementById('precioDocena').value;
-      const precio_cuarto = document.getElementById('precioCuarto').value;
-      const precio_ciento = document.getElementById('precioCiento').value;
-      const precio_millar = document.getElementById('precioMillar').value;
-      const stock = document.getElementById('stock').value;
-
-      try {
-        const url = id ? `/api/productos/${id}` : '/api/productos';
-        const method = id ? 'PUT' : 'POST';
-
-        const res = await fetch(url, {
-          method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            nombre,
-            precio_menudeo,
-            precio_media_docena,
-            precio_docena,
-            precio_cuarto,
-            precio_ciento,
-            precio_millar,
-            stock
-          })
-        });
-
-        if (!res.ok) throw new Error('Error al guardar');
-
-        mostrarMensaje('alertProd', id ? 'Producto actualizado' : 'Producto registrado correctamente');
-        resetearFormularioProducto();
-        actualizarTodo();
-      } catch (err) {
-        mostrarMensaje('alertProd', 'No se pudo guardar el producto', true);
-      }
-    });
-
-    function prepararEdicion(id, nombre, precioMenudeo, precioMediaDocena, precioDocena, precioCuarto, precioCiento, precioMillar, stock) {
-      document.getElementById('productoId').value = id;
-      document.getElementById('nombre').value = nombre;
-      document.getElementById('precioMenudeo').value = precioMenudeo;
-      document.getElementById('precioMediaDocena').value = (precioMediaDocena === null || isNaN(precioMediaDocena)) ? '' : precioMediaDocena;
-      document.getElementById('precioDocena').value = (precioDocena === null || isNaN(precioDocena)) ? '' : precioDocena;
-      document.getElementById('precioCuarto').value = (precioCuarto === null || isNaN(precioCuarto)) ? '' : precioCuarto;
-      document.getElementById('precioCiento').value = (precioCiento === null || isNaN(precioCiento)) ? '' : precioCiento;
-      document.getElementById('precioMillar').value = (precioMillar === null || isNaN(precioMillar)) ? '' : precioMillar;
-      document.getElementById('stock').value = stock;
-      document.getElementById('tituloForm').innerText = 'Editar Producto';
-      document.getElementById('btnGuardar').innerText = 'Actualizar Producto';
+  // Delegación de eventos para la edición segura de productos
+  document.getElementById('tablaProductos').addEventListener('click', (e) => {
+    if (e.target.classList.contains('btn-editar')) {
+      const p = JSON.parse(e.target.getAttribute('data-producto'));
+      prepararEdicion(
+        p.id,
+        p.nombre,
+        parseFloat(p.precio_menudeo),
+        p.precio_media_docena !== null ? parseFloat(p.precio_media_docena) : null,
+        p.precio_docena !== null ? parseFloat(p.precio_docena) : null,
+        p.precio_cuarto !== null ? parseFloat(p.precio_cuarto) : null,
+        p.precio_ciento !== null ? parseFloat(p.precio_ciento) : null,
+        p.precio_millar !== null ? parseFloat(p.precio_millar) : null,
+        p.stock
+      );
     }
+  });
 
-    async function eliminarProducto(id) {
-      if (confirm('¿Deseas eliminar este producto?')) {
-        await fetch(`/api/productos/${id}`, { method: 'DELETE' });
-        mostrarMensaje('alertProd', 'Producto eliminado');
-        actualizarTodo();
-      }
-    }
-
-    function resetearFormularioProducto() {
-      document.getElementById('formProducto').reset();
-      document.getElementById('productoId').value = '';
-      document.getElementById('tituloForm').innerText = 'Registrar Producto';
-      document.getElementById('btnGuardar').innerText = 'Guardar Producto';
-    }
-
-    document.getElementById('formVenta').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const producto_id = document.getElementById('selectProducto').value;
-      const cantidad = document.getElementById('cantidadVenta').value;
-
-      try {
-        const res = await fetch('/api/ventas', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ producto_id, cantidad })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) throw new Error(data.error || 'Error al realizar venta');
-
-        mostrarMensaje('alertVenta', '¡Venta registrada con éxito!');
-        document.getElementById('formVenta').reset();
-        actualizarTodo();
-      } catch (err) {
-        mostrarMensaje('alertVenta', err.message, true);
-      }
-    });
-
-    async function eliminarVenta(id) {
-      if (confirm('¿Deseas eliminar esta venta del historial? (No afecta el stock del producto)')) {
-        try {
-          const res = await fetch(`/api/ventas/${id}`, { method: 'DELETE' });
-          if (!res.ok) throw new Error('Error al eliminar la venta');
-          mostrarMensaje('alertVenta', 'Venta eliminada del historial');
-          actualizarTodo();
-        } catch (err) {
-          mostrarMensaje('alertVenta', 'No se pudo eliminar la venta', true);
-        }
-      }
-    }
-
-    async function vaciarHistorialVentas() {
-      if (listaVentasGlobal.length === 0) {
-        alert('El historial ya está vacío.');
-        return;
-      }
-      if (confirm('¿Seguro que deseas borrar TODO el historial de ventas? Esta acción no se puede deshacer.')) {
-        try {
-          const res = await fetch('/api/ventas', { method: 'DELETE' });
-          if (!res.ok) throw new Error('Error al vaciar el historial');
-          mostrarMensaje('alertVenta', 'Historial de ventas vaciado');
-          actualizarTodo();
-        } catch (err) {
-          mostrarMensaje('alertVenta', 'No se pudo vaciar el historial', true);
-        }
-      }
-    }
-
-    function exportarVentasExcel() {
-      if (listaVentasGlobal.length === 0) {
-        alert('No hay ventas registradas para exportar.');
-        return;
-      }
-
-      let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-      csvContent += "ID,Producto,Cantidad,Precio Unitario (S/),Total (S/),Fecha\n";
+  async function cargarVentas() {
+    try {
+      const res = await fetch('/api/ventas');
+      listaVentasGlobal = await res.json();
+      const tbody = document.getElementById('tablaVentas');
+      tbody.innerHTML = '';
 
       listaVentasGlobal.forEach(v => {
-        const fechaFormatted = new Date(v.fecha).toLocaleString().replace(',', '');
-        csvContent += `${v.id},"${v.producto_nombre}",${v.cantidad},${v.precio_unitario},${v.total},"${fechaFormatted}"\n`;
+        const fecha = new Date(v.fecha).toLocaleString();
+        tbody.innerHTML += `
+          <tr>
+            <td>${v.id}</td>
+            <td>${v.producto_nombre}</td>
+            <td>${v.cantidad}</td>
+            <td>S/ ${parseFloat(v.precio_unitario).toFixed(2)}</td>
+            <td><strong>S/ ${parseFloat(v.total).toFixed(2)}</strong></td>
+            <td><small>${fecha}</small></td>
+            <td><button class="btn-danger" onclick="eliminarVenta(${v.id})">Eliminar</button></td>
+          </tr>
+        `;
+      });
+    } catch (err) {
+      console.error('Error al cargar ventas:', err);
+    }
+  }
+
+  async function cargarTopProductos() {
+    const periodo = document.getElementById('filtroPeriodo').value;
+    const tbody = document.getElementById('tablaTopProductos');
+
+    try {
+      const res = await fetch(`/api/reportes/top-productos?periodo=${periodo}`);
+      const data = await res.json();
+      tbody.innerHTML = '';
+
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No hay ventas registradas en este periodo</td></tr>';
+        return;
+      }
+
+      data.forEach((p, index) => {
+        const posicion = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
+        tbody.innerHTML += `
+          <tr>
+            <td>${posicion}</td>
+            <td>${p.producto_nombre}</td>
+            <td>${p.unidades_vendidas}</td>
+            <td><strong>S/ ${parseFloat(p.total_facturado).toFixed(2)}</strong></td>
+            <td>${p.numero_ventas}</td>
+          </tr>
+        `;
+      });
+    } catch (err) {
+      console.error('Error al cargar el top de productos:', err);
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Error al cargar el reporte</td></tr>';
+    }
+  }
+
+  document.getElementById('formProducto').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btnGuardar = document.getElementById('btnGuardar');
+    btnGuardar.disabled = true;
+
+    const id = document.getElementById('productoId').value;
+    const nombre = document.getElementById('nombre').value;
+    const precio_menudeo = document.getElementById('precioMenudeo').value;
+    const precio_media_docena = document.getElementById('precioMediaDocena').value;
+    const precio_docena = document.getElementById('precioDocena').value;
+    const precio_cuarto = document.getElementById('precioCuarto').value;
+    const precio_ciento = document.getElementById('precioCiento').value;
+    const precio_millar = document.getElementById('precioMillar').value;
+    const stock = document.getElementById('stock').value;
+
+    try {
+      const url = id ? `/api/productos/${id}` : '/api/productos';
+      const method = id ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre,
+          precio_menudeo,
+          precio_media_docena,
+          precio_docena,
+          precio_cuarto,
+          precio_ciento,
+          precio_millar,
+          stock
+        })
       });
 
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Reporte_Ventas_${new Date().toISOString().slice(0,10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (!res.ok) throw new Error('Error al guardar');
+
+      mostrarMensaje('alertProd', id ? 'Producto actualizado' : 'Producto registrado correctamente');
+      resetearFormularioProducto();
+      await actualizarTodo();
+    } catch (err) {
+      mostrarMensaje('alertProd', 'No se pudo guardar el producto', true);
+    } finally {
+      btnGuardar.disabled = false;
+    }
+  });
+
+  function prepararEdicion(id, nombre, precioMenudeo, precioMediaDocena, precioDocena, precioCuarto, precioCiento, precioMillar, stock) {
+    document.getElementById('productoId').value = id;
+    document.getElementById('nombre').value = nombre;
+    document.getElementById('precioMenudeo').value = precioMenudeo;
+    document.getElementById('precioMediaDocena').value = (precioMediaDocena === null || isNaN(precioMediaDocena)) ? '' : precioMediaDocena;
+    document.getElementById('precioDocena').value = (precioDocena === null || isNaN(precioDocena)) ? '' : precioDocena;
+    document.getElementById('precioCuarto').value = (precioCuarto === null || isNaN(precioCuarto)) ? '' : precioCuarto;
+    document.getElementById('precioCiento').value = (precioCiento === null || isNaN(precioCiento)) ? '' : precioCiento;
+    document.getElementById('precioMillar').value = (precioMillar === null || isNaN(precioMillar)) ? '' : precioMillar;
+    document.getElementById('stock').value = stock;
+    document.getElementById('tituloForm').innerText = 'Editar Producto';
+    document.getElementById('btnGuardar').innerText = 'Actualizar Producto';
+  }
+
+  async function eliminarProducto(id) {
+    if (confirm('¿Deseas eliminar este producto?')) {
+      await fetch(`/api/productos/${id}`, { method: 'DELETE' });
+      mostrarMensaje('alertProd', 'Producto eliminado');
+      actualizarTodo();
+    }
+  }
+
+  function resetearFormularioProducto() {
+    document.getElementById('formProducto').reset();
+    document.getElementById('productoId').value = '';
+    document.getElementById('tituloForm').innerText = 'Registrar Producto';
+    document.getElementById('btnGuardar').innerText = 'Guardar Producto';
+  }
+
+  document.getElementById('formVenta').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btnVenta = e.target.querySelector('button[type="submit"]');
+    if (btnVenta) btnVenta.disabled = true;
+
+    const producto_id = document.getElementById('selectProducto').value;
+    const cantidad = document.getElementById('cantidadVenta').value;
+
+    try {
+      const res = await fetch('/api/ventas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ producto_id, cantidad })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Error al realizar venta');
+
+      mostrarMensaje('alertVenta', '¡Venta registrada con éxito!');
+      document.getElementById('formVenta').reset();
+      await actualizarTodo();
+    } catch (err) {
+      mostrarMensaje('alertVenta', err.message, true);
+    } finally {
+      if (btnVenta) btnVenta.disabled = false;
+    }
+  });
+
+  async function eliminarVenta(id) {
+    if (confirm('¿Deseas eliminar esta venta del historial? (No afecta el stock del producto)')) {
+      try {
+        const res = await fetch(`/api/ventas/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Error al eliminar la venta');
+        mostrarMensaje('alertVenta', 'Venta eliminada del historial');
+        actualizarTodo();
+      } catch (err) {
+        mostrarMensaje('alertVenta', 'No se pudo eliminar la venta', true);
+      }
+    }
+  }
+
+  async function vaciarHistorialVentas() {
+    if (listaVentasGlobal.length === 0) {
+      alert('El historial ya está vacío.');
+      return;
+    }
+    if (confirm('¿Seguro que deseas borrar TODO el historial de ventas? Esta acción no se puede deshacer.')) {
+      try {
+        const res = await fetch('/api/ventas', { method: 'DELETE' });
+        if (!res.ok) throw new Error('Error al vaciar el historial');
+        mostrarMensaje('alertVenta', 'Historial de ventas vaciado');
+        actualizarTodo();
+      } catch (err) {
+        mostrarMensaje('alertVenta', 'No se pudo vaciar el historial', true);
+      }
+    }
+  }
+
+  function exportarVentasExcel() {
+    if (listaVentasGlobal.length === 0) {
+      alert('No hay ventas registradas para exportar.');
+      return;
     }
 
-    function actualizarTodo() {
-      cargarResumen();
-      cargarProductos();
-      cargarVentas();
-      cargarTopProductos();
-    }
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += "ID,Producto,Cantidad,Precio Unitario (S/),Total (S/),Fecha\n";
 
-    document.getElementById('anioActual').innerText = new Date().getFullYear();
-    actualizarTodo();
-
-    document.getElementById('btnCerrarSesion').addEventListener('click', async () => {
-      await fetch('/api/logout', { method: 'POST' });
-      window.location.href = '/login.html';
+    listaVentasGlobal.forEach(v => {
+      const fechaFormatted = new Date(v.fecha).toLocaleString().replace(',', '');
+      csvContent += `${v.id},"${v.producto_nombre}",${v.cantidad},${v.precio_unitario},${v.total},"${fechaFormatted}"\n`;
     });
-  </script>
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Reporte_Ventas_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  async function actualizarTodo() {
+    await Promise.all([
+      cargarResumen(),
+      cargarProductos(),
+      cargarVentas(),
+      cargarTopProductos()
+    ]);
+  }
+
+  document.getElementById('anioActual').innerText = new Date().getFullYear();
+  actualizarTodo();
+
+  document.getElementById('btnCerrarSesion').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  });
+</script>
 </body>
 </html>

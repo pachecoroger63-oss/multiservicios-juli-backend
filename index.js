@@ -75,7 +75,6 @@ app.get('/app.html', requireLogin, (req, res) => {
 app.use('/api', requireLogin);
 
 // Archivos estáticos (login.html, Logo.png, July.ico, etc.)
-// index:false evita que Express sirva app.html automáticamente en "/"
 app.use(express.static(__dirname, { index: false }));
 
 // Configuración de conexión a PostgreSQL (Neon)
@@ -125,9 +124,23 @@ async function iniciarBaseDeDatos() {
         producto_nombre VARCHAR(100) NOT NULL,
         cantidad INT NOT NULL,
         precio_unitario NUMERIC(10, 2) NOT NULL,
-        total NUMERIC(10, 2) NOT NULL,
+        total_venta NUMERIC(10, 2) NOT NULL,
+        tipo_precio VARCHAR(50),
         fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Migración por si la tabla ventas previa contenía la columna 'total'
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name='ventas' AND column_name='total'
+        ) THEN
+          ALTER TABLE ventas RENAME COLUMN total TO total_venta;
+        END IF;
+      END $$;
     `);
 
     console.log('✅ Conexión exitosa a PostgreSQL ("neondb").');
@@ -230,20 +243,26 @@ app.delete('/api/productos/:id', async (req, res) => {
 
 function obtenerPrecioSegunCantidad(producto, cantidad) {
   let precio = parseFloat(producto.precio_menudeo);
+  let tipo = 'Menudeo';
 
   if (cantidad >= 1000 && producto.precio_millar) {
     precio = parseFloat(producto.precio_millar);
+    tipo = 'Millar';
   } else if (cantidad >= 100 && producto.precio_ciento) {
     precio = parseFloat(producto.precio_ciento);
+    tipo = 'Ciento';
   } else if (cantidad >= 25 && producto.precio_cuarto) {
     precio = parseFloat(producto.precio_cuarto);
+    tipo = 'Cuarto';
   } else if (cantidad >= 12 && producto.precio_docena) {
     precio = parseFloat(producto.precio_docena);
+    tipo = 'Docena';
   } else if (cantidad >= 6 && producto.precio_media_docena) {
     precio = parseFloat(producto.precio_media_docena);
+    tipo = 'Media Docena';
   }
 
-  return precio;
+  return { precio, tipo };
 }
 
 app.post('/api/ventas', async (req, res) => {
@@ -270,16 +289,16 @@ app.post('/api/ventas', async (req, res) => {
       return res.status(400).json({ error: `Stock insuficiente. Stock disponible: ${producto.stock}` });
     }
 
-    const precioUnitario = obtenerPrecioSegunCantidad(producto, cant);
-    const total = precioUnitario * cant;
+    const { precio: precioUnitario, tipo: tipoPrecio } = obtenerPrecioSegunCantidad(producto, cant);
+    const totalVenta = precioUnitario * cant;
     const nuevoStock = producto.stock - cant;
 
     await client.query('UPDATE productos SET stock = $1 WHERE id = $2', [nuevoStock, producto_id]);
 
     const ventaRes = await client.query(
-      `INSERT INTO ventas (producto_nombre, cantidad, precio_unitario, total)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [producto.nombre, cant, precioUnitario, total]
+      `INSERT INTO ventas (producto_nombre, cantidad, precio_unitario, total_venta, tipo_precio)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [producto.nombre, cant, precioUnitario, totalVenta, tipoPrecio]
     );
 
     await client.query('COMMIT');
@@ -327,7 +346,7 @@ app.delete('/api/ventas', async (req, res) => {
 
 app.get('/api/resumen', async (req, res) => {
   try {
-    const ventasRes = await pool.query('SELECT COALESCE(SUM(total), 0) AS total_recaudado, COUNT(*) AS total_ventas FROM ventas');
+    const ventasRes = await pool.query('SELECT COALESCE(SUM(total_venta), 0) AS total_recaudado, COUNT(*) AS total_ventas FROM ventas');
     const stockRes = await pool.query('SELECT COALESCE(SUM(stock), 0) AS stock_total FROM productos');
 
     res.json({
@@ -359,7 +378,7 @@ app.get('/api/reportes/top-productos', async (req, res) => {
       SELECT
         producto_nombre,
         COALESCE(SUM(cantidad), 0)::INT AS unidades_vendidas,
-        COALESCE(SUM(total), 0)::NUMERIC(10,2) AS total_facturado,
+        COALESCE(SUM(total_venta), 0)::NUMERIC(10,2) AS total_facturado,
         COUNT(*)::INT AS numero_ventas
       FROM ventas
       ${filtroFecha}
@@ -389,7 +408,7 @@ app.get('/api/exportar-excel', async (req, res) => {
       { header: 'Producto', key: 'producto_nombre', width: 30 },
       { header: 'Cantidad', key: 'cantidad', width: 12 },
       { header: 'Precio Unitario (S/)', key: 'precio_unitario', width: 20 },
-      { header: 'Total (S/)', key: 'total', width: 16 },
+      { header: 'Total (S/)', key: 'total_venta', width: 16 },
       { header: 'Fecha y Hora', key: 'fecha', width: 25 }
     ];
 
@@ -406,7 +425,7 @@ app.get('/api/exportar-excel', async (req, res) => {
         producto_nombre: v.producto_nombre,
         cantidad: v.cantidad,
         precio_unitario: parseFloat(v.precio_unitario),
-        total: parseFloat(v.total),
+        total_venta: parseFloat(v.total_venta),
         fecha: new Date(v.fecha).toLocaleString('es-PE')
       });
     });
