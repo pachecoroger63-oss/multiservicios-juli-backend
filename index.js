@@ -114,8 +114,11 @@ async function iniciarBaseDeDatos() {
         ADD COLUMN IF NOT EXISTS precio_media_docena NUMERIC(10, 2),
         ADD COLUMN IF NOT EXISTS precio_docena NUMERIC(10, 2),
         ADD COLUMN IF NOT EXISTS precio_cuarto NUMERIC(10, 2),
+        ADD COLUMN IF NOT EXISTS precio_medio_ciento NUMERIC(10, 2),
         ADD COLUMN IF NOT EXISTS precio_ciento NUMERIC(10, 2),
-        ADD COLUMN IF NOT EXISTS precio_millar NUMERIC(10, 2);
+        ADD COLUMN IF NOT EXISTS precio_millar NUMERIC(10, 2),
+        ADD COLUMN IF NOT EXISTS unidad_medida VARCHAR(20) NOT NULL DEFAULT 'unidad',
+        ADD COLUMN IF NOT EXISTS categoria VARCHAR(50);
     `);
 
     await pool.query(`
@@ -151,6 +154,15 @@ async function iniciarBaseDeDatos() {
   }
 }
 
+// --- UTILIDADES ---
+
+// Convierte un valor a número; si está vacío, no es número o es 0, devuelve null
+// (así un precio opcional vacío nunca se cobra como S/ 0.00)
+function numOrNull(valor) {
+  const n = parseFloat(valor);
+  return (!isNaN(n) && n > 0) ? n : null;
+}
+
 // --- API PRODUCTOS ---
 
 app.get('/api/productos', async (req, res) => {
@@ -166,22 +178,28 @@ app.post('/api/productos', async (req, res) => {
   try {
     const {
       nombre, precio_menudeo, precio_media_docena, precio_docena,
-      precio_cuarto, precio_ciento, precio_millar, stock
+      precio_cuarto, precio_medio_ciento, precio_ciento, precio_millar,
+      stock, unidad_medida, categoria
     } = req.body;
 
     const pMenudeo = parseFloat(precio_menudeo);
-    const pMediaDocena = precio_media_docena ? parseFloat(precio_media_docena) : null;
-    const pDocena = precio_docena ? parseFloat(precio_docena) : null;
-    const pCuarto = precio_cuarto ? parseFloat(precio_cuarto) : null;
-    const pCiento = precio_ciento ? parseFloat(precio_ciento) : pMenudeo;
-    const pMillar = precio_millar ? parseFloat(precio_millar) : pCiento;
+    const pMediaDocena = numOrNull(precio_media_docena);
+    const pDocena = numOrNull(precio_docena);
+    const pCuarto = numOrNull(precio_cuarto);
+    const pMedioCiento = numOrNull(precio_medio_ciento);
+    const pCiento = numOrNull(precio_ciento) ?? pMenudeo;
+    const pMillar = numOrNull(precio_millar) ?? pCiento;
     const cantStock = parseInt(stock, 10);
+    const unidad = unidad_medida || 'unidad';
+    const cat = categoria ? String(categoria).trim() : null;
 
     const resu = await pool.query(
       `INSERT INTO productos
-       (nombre, precio_menudeo, precio_media_docena, precio_docena, precio_cuarto, precio_ciento, precio_millar, stock)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [nombre, pMenudeo, pMediaDocena, pDocena, pCuarto, pCiento, pMillar, cantStock]
+       (nombre, precio_menudeo, precio_media_docena, precio_docena, precio_cuarto,
+        precio_medio_ciento, precio_ciento, precio_millar, stock, unidad_medida, categoria)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [nombre, pMenudeo, pMediaDocena, pDocena, pCuarto,
+       pMedioCiento, pCiento, pMillar, cantStock, unidad, cat]
     );
     res.status(201).json(resu.rows[0]);
   } catch (err) {
@@ -195,22 +213,28 @@ app.put('/api/productos/:id', async (req, res) => {
     const { id } = req.params;
     const {
       nombre, precio_menudeo, precio_media_docena, precio_docena,
-      precio_cuarto, precio_ciento, precio_millar, stock
+      precio_cuarto, precio_medio_ciento, precio_ciento, precio_millar,
+      stock, unidad_medida, categoria
     } = req.body;
 
     const pMenudeo = parseFloat(precio_menudeo);
-    const pMediaDocena = precio_media_docena ? parseFloat(precio_media_docena) : null;
-    const pDocena = precio_docena ? parseFloat(precio_docena) : null;
-    const pCuarto = precio_cuarto ? parseFloat(precio_cuarto) : null;
-    const pCiento = precio_ciento ? parseFloat(precio_ciento) : pMenudeo;
-    const pMillar = precio_millar ? parseFloat(precio_millar) : pCiento;
+    const pMediaDocena = numOrNull(precio_media_docena);
+    const pDocena = numOrNull(precio_docena);
+    const pCuarto = numOrNull(precio_cuarto);
+    const pMedioCiento = numOrNull(precio_medio_ciento);
+    const pCiento = numOrNull(precio_ciento) ?? pMenudeo;
+    const pMillar = numOrNull(precio_millar) ?? pCiento;
+    const unidad = unidad_medida || 'unidad';
+    const cat = categoria ? String(categoria).trim() : null;
 
     const resu = await pool.query(
       `UPDATE productos
        SET nombre = $1, precio_menudeo = $2, precio_media_docena = $3, precio_docena = $4,
-           precio_cuarto = $5, precio_ciento = $6, precio_millar = $7, stock = $8
-       WHERE id = $9 RETURNING *`,
-      [nombre, pMenudeo, pMediaDocena, pDocena, pCuarto, pCiento, pMillar, parseInt(stock, 10), id]
+           precio_cuarto = $5, precio_medio_ciento = $6, precio_ciento = $7, precio_millar = $8,
+           stock = $9, unidad_medida = $10, categoria = $11
+       WHERE id = $12 RETURNING *`,
+      [nombre, pMenudeo, pMediaDocena, pDocena, pCuarto,
+       pMedioCiento, pCiento, pMillar, parseInt(stock, 10), unidad, cat, id]
     );
 
     if (resu.rows.length === 0) {
@@ -251,6 +275,9 @@ function obtenerPrecioSegunCantidad(producto, cantidad) {
   } else if (cantidad >= 100 && producto.precio_ciento) {
     precio = parseFloat(producto.precio_ciento);
     tipo = 'Ciento';
+  } else if (cantidad >= 50 && producto.precio_medio_ciento) {
+    precio = parseFloat(producto.precio_medio_ciento);
+    tipo = 'Medio Ciento';
   } else if (cantidad >= 25 && producto.precio_cuarto) {
     precio = parseFloat(producto.precio_cuarto);
     tipo = 'Cuarto';

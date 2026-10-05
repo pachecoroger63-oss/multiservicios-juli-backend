@@ -257,10 +257,25 @@
         <form id="formProducto">
           <input type="hidden" id="productoId">
           <input type="text" id="nombre" placeholder="Nombre del producto" required>
+          <input type="text" id="categoria" list="listaCategorias" placeholder="Categoría (ej. Costales, Plásticos, Rafia) — opcional">
+          <datalist id="listaCategorias">
+            <option value="Costales">
+            <option value="Plásticos">
+            <option value="Rafia">
+            <option value="Otros">
+          </datalist>
+          <select id="unidadMedida" aria-label="Unidad de medida" required>
+            <option value="unidad">Se vende por: Unidad</option>
+            <option value="metro">Se vende por: Metro</option>
+            <option value="kilo">Se vende por: Kilo</option>
+            <option value="rollo">Se vende por: Rollo</option>
+            <option value="fardo">Se vende por: Fardo</option>
+          </select>
           <input type="number" step="0.01" id="precioMenudeo" placeholder="Precio al detalle / menudeo (S/)" required>
           <input type="number" step="0.01" id="precioMediaDocena" placeholder="Precio por media docena (6 und.) (S/) — opcional">
           <input type="number" step="0.01" id="precioDocena" placeholder="Precio por docena (12 und.) (S/) — opcional">
           <input type="number" step="0.01" id="precioCuarto" placeholder="Precio por cuarto (25 und.) (S/) — opcional">
+          <input type="number" step="0.01" id="precioMedioCiento" placeholder="Precio por medio ciento (50 und.) (S/) — opcional">
           <input type="number" step="0.01" id="precioCiento" placeholder="Precio por ciento (100 und.) (S/) — opcional">
           <input type="number" step="0.01" id="precioMillar" placeholder="Precio por millar (1000 und.) (S/) — opcional">
           <input type="number" id="stock" placeholder="Stock disponible" required>
@@ -274,10 +289,13 @@
             <tr>
               <th>ID</th>
               <th>Nombre</th>
+              <th>Categoría</th>
+              <th>Unidad</th>
               <th>P. Menudeo</th>
               <th>P. 1/2 Doc.</th>
               <th>P. Docena</th>
               <th>P. 1/4</th>
+              <th>P. 1/2 Ciento</th>
               <th>P. Ciento</th>
               <th>P. Millar</th>
               <th>Stock</th>
@@ -364,6 +382,27 @@
 <script>
   let listaVentasGlobal = [];
 
+  // Convierte un valor de la base de datos a número, o null si está vacío / es 0
+  function aNumeroONull(valor) {
+    if (valor === null || valor === undefined || valor === '') return null;
+    const n = parseFloat(valor);
+    return (isNaN(n) || n <= 0) ? null : n;
+  }
+
+  // Muestra "S/ 1.00" o "—" si no hay precio
+  function formatearPrecio(valor) {
+    const n = aNumeroONull(valor);
+    return n !== null ? 'S/ ' + n.toFixed(2) : '—';
+  }
+
+  // Evita que un nombre con símbolos como < > & rompa la tabla
+  function escaparHTML(texto) {
+    return String(texto ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   function mostrarMensaje(elementId, texto, esError = false) {
     const box = document.getElementById(elementId);
     box.innerText = texto;
@@ -397,22 +436,21 @@
 
       productos.forEach(p => {
         const pMenudeo = parseFloat(p.precio_menudeo);
-        const pMediaDocena = p.precio_media_docena !== null && p.precio_media_docena !== undefined ? parseFloat(p.precio_media_docena) : null;
-        const pDocena = p.precio_docena !== null && p.precio_docena !== undefined ? parseFloat(p.precio_docena) : null;
-        const pCuarto = p.precio_cuarto !== null && p.precio_cuarto !== undefined ? parseFloat(p.precio_cuarto) : null;
-        const pCiento = p.precio_ciento !== null && p.precio_ciento !== undefined ? parseFloat(p.precio_ciento) : null;
-        const pMillar = p.precio_millar !== null && p.precio_millar !== undefined ? parseFloat(p.precio_millar) : null;
+        const unidad = p.unidad_medida || 'unidad';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${p.id}</td>
-          <td>${p.nombre}</td>
+          <td>${escaparHTML(p.nombre)}</td>
+          <td>${p.categoria ? escaparHTML(p.categoria) : '—'}</td>
+          <td>${escaparHTML(unidad)}</td>
           <td>S/ ${pMenudeo.toFixed(2)}</td>
-          <td>${pMediaDocena !== null ? 'S/ ' + pMediaDocena.toFixed(2) : '—'}</td>
-          <td>${pDocena !== null ? 'S/ ' + pDocena.toFixed(2) : '—'}</td>
-          <td>${pCuarto !== null ? 'S/ ' + pCuarto.toFixed(2) : '—'}</td>
-          <td>${pCiento !== null ? 'S/ ' + pCiento.toFixed(2) : '—'}</td>
-          <td>${pMillar !== null ? 'S/ ' + pMillar.toFixed(2) : '—'}</td>
+          <td>${formatearPrecio(p.precio_media_docena)}</td>
+          <td>${formatearPrecio(p.precio_docena)}</td>
+          <td>${formatearPrecio(p.precio_cuarto)}</td>
+          <td>${formatearPrecio(p.precio_medio_ciento)}</td>
+          <td>${formatearPrecio(p.precio_ciento)}</td>
+          <td>${formatearPrecio(p.precio_millar)}</td>
           <td><strong>${p.stock}</strong></td>
           <td>
             <button class="btn-warning btn-editar" data-producto='${JSON.stringify(p).replace(/'/g, "&apos;")}'>Editar</button>
@@ -422,7 +460,7 @@
         tbody.appendChild(tr);
 
         if (p.stock > 0) {
-          select.innerHTML += `<option value="${p.id}">${p.nombre} - desde S/ ${pMenudeo.toFixed(2)} (Stock: ${p.stock})</option>`;
+          select.innerHTML += `<option value="${p.id}">${escaparHTML(p.nombre)} - desde S/ ${pMenudeo.toFixed(2)} por ${escaparHTML(unidad)} (Stock: ${p.stock})</option>`;
         }
       });
     } catch (err) {
@@ -433,17 +471,7 @@
   document.getElementById('tablaProductos').addEventListener('click', (e) => {
     if (e.target.classList.contains('btn-editar')) {
       const p = JSON.parse(e.target.getAttribute('data-producto'));
-      prepararEdicion(
-        p.id,
-        p.nombre,
-        parseFloat(p.precio_menudeo),
-        p.precio_media_docena !== null ? parseFloat(p.precio_media_docena) : null,
-        p.precio_docena !== null ? parseFloat(p.precio_docena) : null,
-        p.precio_cuarto !== null ? parseFloat(p.precio_cuarto) : null,
-        p.precio_ciento !== null ? parseFloat(p.precio_ciento) : null,
-        p.precio_millar !== null ? parseFloat(p.precio_millar) : null,
-        p.stock
-      );
+      prepararEdicion(p);
     }
   });
 
@@ -459,10 +487,10 @@
         tbody.innerHTML += `
           <tr>
             <td>${v.id}</td>
-            <td>${v.producto_nombre}</td>
+            <td>${escaparHTML(v.producto_nombre)}</td>
             <td>${v.cantidad}</td>
             <td>S/ ${parseFloat(v.precio_unitario).toFixed(2)}</td>
-            <td><strong>S/ ${parseFloat(v.total).toFixed(2)}</strong></td>
+            <td><strong>S/ ${parseFloat(v.total_venta).toFixed(2)}</strong></td>
             <td><small>${fecha}</small></td>
             <td><button class="btn-danger" onclick="eliminarVenta(${v.id})">Eliminar</button></td>
           </tr>
@@ -492,7 +520,7 @@
         tbody.innerHTML += `
           <tr>
             <td>${posicion}</td>
-            <td>${p.producto_nombre}</td>
+            <td>${escaparHTML(p.producto_nombre)}</td>
             <td>${p.unidades_vendidas}</td>
             <td><strong>S/ ${parseFloat(p.total_facturado).toFixed(2)}</strong></td>
             <td>${p.numero_ventas}</td>
@@ -512,10 +540,13 @@
 
     const id = document.getElementById('productoId').value;
     const nombre = document.getElementById('nombre').value;
+    const categoria = document.getElementById('categoria').value;
+    const unidad_medida = document.getElementById('unidadMedida').value;
     const precio_menudeo = document.getElementById('precioMenudeo').value;
     const precio_media_docena = document.getElementById('precioMediaDocena').value;
     const precio_docena = document.getElementById('precioDocena').value;
     const precio_cuarto = document.getElementById('precioCuarto').value;
+    const precio_medio_ciento = document.getElementById('precioMedioCiento').value;
     const precio_ciento = document.getElementById('precioCiento').value;
     const precio_millar = document.getElementById('precioMillar').value;
     const stock = document.getElementById('stock').value;
@@ -529,10 +560,13 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre,
+          categoria,
+          unidad_medida,
           precio_menudeo,
           precio_media_docena,
           precio_docena,
           precio_cuarto,
+          precio_medio_ciento,
           precio_ciento,
           precio_millar,
           stock
@@ -551,18 +585,27 @@
     }
   });
 
-  function prepararEdicion(id, nombre, precioMenudeo, precioMediaDocena, precioDocena, precioCuarto, precioCiento, precioMillar, stock) {
-    document.getElementById('productoId').value = id;
-    document.getElementById('nombre').value = nombre;
-    document.getElementById('precioMenudeo').value = precioMenudeo;
-    document.getElementById('precioMediaDocena').value = (precioMediaDocena === null || isNaN(precioMediaDocena)) ? '' : precioMediaDocena;
-    document.getElementById('precioDocena').value = (precioDocena === null || isNaN(precioDocena)) ? '' : precioDocena;
-    document.getElementById('precioCuarto').value = (precioCuarto === null || isNaN(precioCuarto)) ? '' : precioCuarto;
-    document.getElementById('precioCiento').value = (precioCiento === null || isNaN(precioCiento)) ? '' : precioCiento;
-    document.getElementById('precioMillar').value = (precioMillar === null || isNaN(precioMillar)) ? '' : precioMillar;
-    document.getElementById('stock').value = stock;
+  function prepararEdicion(p) {
+    const vacioSiNulo = (v) => {
+      const n = aNumeroONull(v);
+      return n === null ? '' : n;
+    };
+
+    document.getElementById('productoId').value = p.id;
+    document.getElementById('nombre').value = p.nombre;
+    document.getElementById('categoria').value = p.categoria || '';
+    document.getElementById('unidadMedida').value = p.unidad_medida || 'unidad';
+    document.getElementById('precioMenudeo').value = parseFloat(p.precio_menudeo);
+    document.getElementById('precioMediaDocena').value = vacioSiNulo(p.precio_media_docena);
+    document.getElementById('precioDocena').value = vacioSiNulo(p.precio_docena);
+    document.getElementById('precioCuarto').value = vacioSiNulo(p.precio_cuarto);
+    document.getElementById('precioMedioCiento').value = vacioSiNulo(p.precio_medio_ciento);
+    document.getElementById('precioCiento').value = vacioSiNulo(p.precio_ciento);
+    document.getElementById('precioMillar').value = vacioSiNulo(p.precio_millar);
+    document.getElementById('stock').value = p.stock;
     document.getElementById('tituloForm').innerText = 'Editar Producto';
     document.getElementById('btnGuardar').innerText = 'Actualizar Producto';
+    document.getElementById('formProducto').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function eliminarProducto(id) {
@@ -650,7 +693,7 @@
 
     listaVentasGlobal.forEach(v => {
       const fechaFormatted = new Date(v.fecha).toLocaleString().replace(',', '');
-      csvContent += `${v.id},"${v.producto_nombre}",${v.cantidad},${v.precio_unitario},${v.total},"${fechaFormatted}"\n`;
+      csvContent += `${v.id},"${v.producto_nombre}",${v.cantidad},${v.precio_unitario},${v.total_venta},"${fechaFormatted}"\n`;
     });
 
     const encodedUri = encodeURI(csvContent);
